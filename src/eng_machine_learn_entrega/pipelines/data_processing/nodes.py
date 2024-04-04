@@ -74,7 +74,7 @@ def load_kobe_dataset(kobe: pd.DataFrame) -> pd.DataFrame:
     
 def kobe_avarage_shot_artefact(kobe_shot: pd.DataFrame) -> pd.DataFrame:
 
-        figure_name = 'kobe_avarage_shot_artefact'
+        plot_path = 'data/08_reporting/shots_made_and_missed.png'
         data = kobe_shot
         sns.set(style='ticks')
             
@@ -84,6 +84,42 @@ def kobe_avarage_shot_artefact(kobe_shot: pd.DataFrame) -> pd.DataFrame:
         fg_percentage = 100 * made_shots_num / total_shots
         sns.countplot(data=data,x='shot_made_flag',hue='shot_made_flag', palette=['r','g'])
         plt.legend(labels=['miss', 'make'])
-        plot_path = f'plot_learning_{figure_name}.png'
         plt.savefig(plot_path)
+        plt.show()
         mlflow.log_artifact(plot_path)
+
+
+def build_kobe_model_pycaret(kobe_shot: pd.DataFrame) -> pd.DataFrame:
+    
+    from pycaret.classification import setup, compare_models, predict_model
+    
+    setup(
+        session_id=123,
+        data = kobe_shot, # Configurações de dados
+        train_size=0.6,
+        target = kobe_shot['shot_made_flag'],
+        profile = False, # Analise interativa de variaveis
+        fold_strategy = 'stratifiedkfold', # Validação cruzada
+        fold = 10,
+        normalize = True,  # Normalização, transformação e remoção de variáveis
+        transformation = True, 
+        remove_multicollinearity = True,
+        multicollinearity_threshold = 0.95,
+        bin_numeric_features = None, # Binarizacao de variaveis
+        group_features = None, # Grupos de variáveis para combinar na engenharia de variaveis
+        categorical_features = ['type'],
+        ignore_features = ['shot_made_flag'],
+        log_experiment = False, # Logging dos experimentos e afins
+        experiment_name = experiment_name,
+    )
+
+    # Comparar modelos
+    best_model = compare_models()
+
+    # Salvar o melhor modelo
+    model_path = "data/07_model_output/pycaret_model_1.pkl"
+    save_model(best_model, model_path)
+
+    # Logar o modelo no MLflow
+    mlflow.set_tracking_uri(mlflow_tracking_uri)
+    mlflow.set_experiment(experiment_name)

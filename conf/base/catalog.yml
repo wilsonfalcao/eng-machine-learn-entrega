@@ -48,5 +48,9 @@ kobe_shot:
   filepath: data/01_raw/kobe_shot.csv
   
 shots_made_and_missed:
-  type: kedro_mlflow.io.artifacts.MlflowArtifactDataset
+  type: matplotlib.MatplotlibWriter
   filepath: data/08_reporting/shots_made_and_missed.png
+
+kobe_shote_model:
+  type: pickle.PickleDataset
+  filepath: data/07_model_output/pycaret_model_1.pickle

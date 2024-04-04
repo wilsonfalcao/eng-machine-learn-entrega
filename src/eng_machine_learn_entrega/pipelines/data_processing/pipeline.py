@@ -2,7 +2,8 @@ from kedro.pipeline import Pipeline, node, pipeline
 
 from .nodes import (
     load_kobe_dataset,
-    kobe_avarage_shot_artefact
+    kobe_avarage_shot_artefact,
+    build_kobe_model_pycaret
 )
 
 
@@ -20,6 +21,12 @@ def create_pipeline(**kwargs) -> Pipeline:
                 inputs="kobe_shot",
                 outputs="shots_made_and_missed",
                 name="kobe_avarage_shot_artefact",
+            ),
+            node(
+                func=build_kobe_model_pycaret,
+                inputs="kobe_shot",
+                outputs=None,
+                name="build_kobe_model_pycaret",
             ),
         ]
     )
