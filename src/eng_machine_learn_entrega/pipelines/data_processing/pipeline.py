@@ -25,7 +25,7 @@ def create_pipeline(**kwargs) -> Pipeline:
             node(
                 func=build_kobe_model_pycaret,
                 inputs="kobe_shot",
-                outputs=None,
+                outputs="kobe_shot_model",
                 name="build_kobe_model_pycaret",
             ),
         ]

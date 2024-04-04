@@ -1,0 +1,16 @@
+artifact_uri: file:///D:/Machine%20Learning%20Projetos/eng-machine-learn-entrega/mlruns/765449457021163513/b8c415647d9f4c6f8cbbccc22e48f830/artifacts
+deleted_time: 1712261033155
+end_time: 1712260834751
+entry_point_name: ''
+experiment_id: '765449457021163513'
+lifecycle_stage: deleted
+run_id: b8c415647d9f4c6f8cbbccc22e48f830
+run_name: __default__
+run_uuid: b8c415647d9f4c6f8cbbccc22e48f830
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1712260797751
+status: 4
+tags: []
+user_id: wilson falcao

@@ -32,45 +32,25 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from matplotlib.lines import Line2D
 
-
-def _is_true(x: Column) -> Column:
-    return x == "t"
-
-
-def _parse_percentage(x: Column) -> Column:
-    x = regexp_replace(x, "%", "")
-    x = x.cast("float") / 100
-    return x
+# Configuracao
+criterion = 'gini'
+max_depth = 5
 
 
-def _parse_money(x: Column) -> Column:
-    x = regexp_replace(x, "[$£€]", "")
-    x = regexp_replace(x, ",", "")
-    x = x.cast(DoubleType())
-    return x
-    
 def load_kobe_dataset(kobe: pd.DataFrame) -> pd.DataFrame:
-    """Load shuttles to csv because it's not possible to load excel directly into spark.
-    """
-    print("Loading data kobe data set...")
-    kobe_data_raw = kobe
-    kobe_data_raw.dtypes
 
-    #drop rows with na values in the target feature and reset the index so we dont have anything missing
-    kobe_data_raw = kobe_data_raw[kobe_data_raw['shot_made_flag'].notnull()].reset_index() 
-
-    # Alterando os tipos de variáveis para melhor performance
-    kobe_data_raw["period"] = kobe_data_raw["period"].astype('object')
+    import numpy as np
     
-    vars_to_category = ["combined_shot_type", "game_event_id", "game_id", "playoffs",
-                        "season", "shot_made_flag", "shot_type", "team_id"]
-    for col in vars_to_category:
-        kobe_data_raw[col] = kobe_data_raw[col].astype('category')
+    print("Started function cleanup data...")
 
-    kobe_data_raw.describe(include=['number'])
-    kobe_data_raw['shot_made_flag'] = kobe_data_raw['shot_made_flag'].astype(int)
+    # remove data target null or blank
+    data_transformed = kobe
+    data_transformed= data_transformed.dropna(subset=['shot_made_flag'])
+
+    # Salve o conjunto de dados transformado em um diretório
+    data_transformed.to_csv("data/02_intermediate/kobe_shot_transformed.csv", index=False)
     
-    return kobe_data_raw
+    return data_transformed
     
 def kobe_avarage_shot_artefact(kobe_shot: pd.DataFrame) -> pd.DataFrame:
 
@@ -91,35 +71,62 @@ def kobe_avarage_shot_artefact(kobe_shot: pd.DataFrame) -> pd.DataFrame:
 
 def build_kobe_model_pycaret(kobe_shot: pd.DataFrame) -> pd.DataFrame:
     
-    from pycaret.classification import setup, compare_models, predict_model
+    from pycaret.classification import setup, compare_models, save_model, create_model
     
-    setup(
-        session_id=123,
-        data = kobe_shot, # Configurações de dados
-        train_size=0.6,
-        target = kobe_shot['shot_made_flag'],
-        profile = False, # Analise interativa de variaveis
-        fold_strategy = 'stratifiedkfold', # Validação cruzada
-        fold = 10,
-        normalize = True,  # Normalização, transformação e remoção de variáveis
-        transformation = True, 
-        remove_multicollinearity = True,
-        multicollinearity_threshold = 0.95,
-        bin_numeric_features = None, # Binarizacao de variaveis
-        group_features = None, # Grupos de variáveis para combinar na engenharia de variaveis
-        categorical_features = ['type'],
-        ignore_features = ['shot_made_flag'],
-        log_experiment = False, # Logging dos experimentos e afins
-        experiment_name = experiment_name,
-    )
+    setup(kobe_shot, target='shot_made_flag', categorical_features=['action_type', 'combined_shot_type'])
 
-    # Comparar modelos
+    # Comparar modelos disponíveis
     best_model = compare_models()
+    
+    # Treinar o melhor modelo
+    final_model = create_model(best_model)
 
     # Salvar o melhor modelo
-    model_path = "data/07_model_output/pycaret_model_1.pkl"
-    save_model(best_model, model_path)
+    model_file = "pycaret_model_1.pkl"
+    model_path = "data/07_model_output/pycaret_model_1"
+    save_model(final_model, model_path)
+    
+    mlflow.log_artifact("data/07_model_output/pycaret_model_1.pkl")
 
-    # Logar o modelo no MLflow
-    mlflow.set_tracking_uri(mlflow_tracking_uri)
-    mlflow.set_experiment(experiment_name)
+    main_metrics(kobe_shot, "", final_model)
+
+    return final_model
+
+
+# Funções de Métricas
+
+def eval_metrics(pred):
+    actual = pred['shot_made_flag']
+    pred = pred['prediction_label']
+    return (metrics.precision_score(actual, pred), 
+            metrics.recall_score(actual, pred),
+            metrics.f1_score(actual, pred))
+
+
+def main_metrics (dataset, trained, model):
+
+    from pycaret.classification import predict_model
+    
+    # Fazer previsões usando o modelo treinado
+    predictions = predict_model(model, dataset)
+
+    (precision, recall, f1) = eval_metrics(predictions)
+    cm =  metrics.confusion_matrix(predictions["shot_made_flag"], predictions['prediction_label'])
+
+    print("Decisn Tree Classifier (criterion=%s, max_depth=%f):" % (criterion, max_depth))
+    print("  precision: %s" % precision)
+    print("  recall: %s" % recall)
+    print("  f1: %s" % f1)
+
+    # LOG DE PARAMETROS DO MODELO
+    mlflow.log_param("criterion", criterion)
+    mlflow.log_param("max_depth", max_depth)
+    
+    # LOG DE METRICAS GLOBAIS
+    mlflow.log_metric("precision", precision)
+    mlflow.log_metric("recall", recall)
+    mlflow.log_metric("f1", f1)
+    mlflow.log_metric("Verdadeiro Positivo",cm[1,1])
+    mlflow.log_metric("Verdadeiro Negativo",cm[0,0])
+    mlflow.log_metric("Falso Positivo",cm[0,1])
+    mlflow.log_metric("Falso Negativo",cm[1,0])
