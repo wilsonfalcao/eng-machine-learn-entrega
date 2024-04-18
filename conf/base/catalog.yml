@@ -43,6 +43,10 @@ kobe@csv:
   type: pandas.CSVDataset
   filepath: data/01_raw/kobe_shot.csv
 
+dataset_kobe_prod:
+  type: pandas.CSVDataset
+  filepath: data/01_raw/dataset_kobe_prod.parquet
+
 kobe_shot:
   type: pandas.CSVDataset
   filepath: data/02_intermediate/kobe_shot_transformed.csv
