@@ -248,8 +248,45 @@ def build_kobe_model_pycaret(kobe_shot: pd.DataFrame) -> pd.DataFrame:
     save_model(model_arvore, model_path_reg)
     mlflow.log_artifact("data/07_model_output/pycaret_model_reg.pkl")
     main_metrics(kobe_shot, "", model_arvore,"Arvore")
+
+    analise_comparativa(kobe_shot);
     
     return final_model
+
+def analise_comparativa(dataset_dev):
+
+    from sklearn.metrics import roc_curve, auc, classification_report, confusion_matrix, roc_auc_score
+    import joblib
+
+    plot_path = 'data/08_reporting/cofusion_matriz_model.png'
+    
+    model_producao = joblib.load('data/07_model_output/pycaret_model_1.pkl')
+
+    # Selecionar características e variável alvo
+    X = dataset_dev.drop('shot_made_flag', axis=1)
+    y = dataset_dev['shot_made_flag']
+    
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+    
+    # Avaliar o desempenho do modelo de produção
+    y_pred_producao = model_producao.predict(X_test)
+    print("Desempenho do modelo de produção:")
+    print(classification_report(y_test, y_pred_producao))
+    print("AUC:", roc_auc_score(y_test, model_producao.predict_proba(X_test)[:,1]))
+    
+    # Criar a matriz de confusão
+    conf_matrix_producao = confusion_matrix(y_test, y_pred_producao)
+    
+    # Plotar a matriz de confusão
+    plt.figure(figsize=(8,6))
+    sns.heatmap(conf_matrix_producao, annot=True, fmt='d', cmap='Blues', cbar=False)
+    plt.xlabel('Valor Previsto')
+    plt.ylabel('Valor Real')
+    plt.title('Matriz de Confusão do Modelo de Produção')
+    plt.show()
+    plt.savefig(plot_path)
+    plt.show()
+    mlflow.log_artifact(plot_path)
 
 # Funções de Métricas
 
@@ -301,3 +338,75 @@ def main_metrics (dataset, trained, model, name):
     
     # Salvar o DataFrame em um arquivo CSV
     metrics_df.to_csv("metrics_"+name+".csv", index=False)
+    
+def server_web_api(kobe_shot_model):
+    from flask import Flask, request, jsonify
+    import joblib
+    import pandas as pd
+    
+    app = Flask(__name__)
+    
+    # Carregar o modelo
+    model = joblib.load('data/07_model_output/pycaret_model_1.pkl')
+    
+    # Rota para predições
+    @app.route('/predict', methods=['POST'])
+    def predict():
+        # Receber os dados da requisição
+        data = request.json
+        
+        # Converter os dados para DataFrame
+        df = pd.DataFrame(data['features'], index=[0])
+        
+        # Fazer a predição usando o modelo
+        prediction = model.predict_proba(df)[:, 1]
+        
+        # Retornar a predição
+        return jsonify({'prediction': prediction.tolist()})
+    
+    if __name__ == '__main__':
+        app.run()
+
+def request_app():
+    
+    import requests
+
+    # URL da Web API
+    url = 'http://localhost:5000/predict'
+    
+    # Dados para a predição (valores reais do conjunto de dados)
+    data = {
+        'features': {
+            'action_type':26,
+            'combined_shot_type':3,
+            'game_event_id': 12,
+            'game_id': 20000012,
+            'loc_x': -157,
+            'loc_y': 0,
+            'season': 1,
+            'seconds_remaining': 22,
+            'shot_distance': 15,
+            'shot_type': 0,
+            'shot_zone_area': 3,
+            'shot_zone_basic': 4,
+            'team_id': 1610612747,
+            'team_name': 0,
+            'matchup': 28,
+            'opponent': 25,
+            'shot_id': 2
+        }
+    }
+    #26,3,12,20000012,-157,0,1,22,15,0.0,0,3,4,1610612747,0,28,25,2
+    
+    
+    # Enviar solicitação POST com os dados
+    response = requests.post(url, json=data)
+    
+    # Verificar se a solicitação foi bem-sucedida
+    if response.status_code == 200:
+        # Obter a previsão do JSON de resposta
+        prediction = response.json()['prediction']
+        print('Previsão:', prediction)
+    else:
+        print('Erro ao fazer a solicitação:', response.text)   
+    

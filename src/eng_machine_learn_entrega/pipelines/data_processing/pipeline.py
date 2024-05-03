@@ -35,6 +35,6 @@ def create_pipeline(**kwargs) -> Pipeline:
                 inputs="dataset_kobe_prod",
                 outputs="kobe_shot_model",
                 name="build_kobe_model_pycaret",
-            ),
+            )
         ]
     )
